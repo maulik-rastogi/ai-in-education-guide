@@ -8,7 +8,9 @@ st.set_page_config(page_title="Survey Dashboard", layout="wide")
 
 @st.cache_data
 def load_data(filepath):
-    return pd.read_csv(filepath)
+    df = pd.read_csv(filepath)
+    df.columns = df.columns.str.strip()
+    return df
 
 
 df = load_data("data.csv")
@@ -35,24 +37,48 @@ def extract_unique_options(series):
 
 st.sidebar.header("Filter Responses")
 
-aud_options = extract_unique_options(df["Primary Audience"])
-selected_audience = st.sidebar.multiselect(
-    "Primary Audience", options=aud_options
-)
+AUDIENCE_COL = "Primary Audience"
+TOOLS_COL = "Tools Included"
 
-tools_options = extract_unique_options(df["Tools Included"])
-selected_tools = st.sidebar.multiselect("Tools Included", options=tools_options)
+scale_cols = [
+    col
+    for col in df.columns
+    if df[col].dropna().isin([0, 1, 2, 3, 0.0, 1.0, 2.0, 3.0]).all()
+    and not df[col].dropna().empty
+]
+SCALE_COL = scale_cols[0] if scale_cols else None
 
-SCALE_COL = "Scale_Column"
-selected_scale = st.sidebar.slider(
-    f"{SCALE_COL} (0-3)", min_value=0, max_value=3, value=(0, 3)
-)
+if AUDIENCE_COL in df.columns:
+    aud_options = extract_unique_options(df[AUDIENCE_COL])
+    selected_audience = st.sidebar.multiselect(
+        AUDIENCE_COL, options=aud_options
+    )
+else:
+    selected_audience = []
+
+if TOOLS_COL in df.columns:
+    tools_options = extract_unique_options(df[TOOLS_COL])
+    selected_tools = st.sidebar.multiselect(TOOLS_COL, options=tools_options)
+else:
+    selected_tools = []
+
+if SCALE_COL:
+    min_val = int(df[SCALE_COL].min())
+    max_val = int(df[SCALE_COL].max())
+    selected_scale = st.sidebar.slider(
+        f"{SCALE_COL} (Scale)",
+        min_value=min_val,
+        max_value=max_val,
+        value=(min_val, max_val),
+    )
+else:
+    selected_scale = None
 
 filtered_df = df.copy()
 
 
 def filter_multiselect(dataframe, column_name, selected_values):
-    if not selected_values:
+    if not selected_values or column_name not in dataframe.columns:
         return dataframe
 
     def matches(val):
@@ -62,12 +88,10 @@ def filter_multiselect(dataframe, column_name, selected_values):
     return dataframe[dataframe[column_name].apply(matches)]
 
 
-filtered_df = filter_multiselect(
-    filtered_df, "Primary Audience", selected_audience
-)
-filtered_df = filter_multiselect(filtered_df, "Tools Included", selected_tools)
+filtered_df = filter_multiselect(filtered_df, AUDIENCE_COL, selected_audience)
+filtered_df = filter_multiselect(filtered_df, TOOLS_COL, selected_tools)
 
-if SCALE_COL in filtered_df.columns:
+if SCALE_COL and selected_scale:
     filtered_df = filtered_df[
         filtered_df[SCALE_COL].between(selected_scale[0], selected_scale[1])
     ]
@@ -80,14 +104,15 @@ col2.metric("Filtered Entries", len(filtered_df))
 
 st.divider()
 
-st.subheader("Tools Included Breakdown")
-all_tools_in_filtered = []
-for entry in filtered_df["Tools Included"]:
-    all_tools_in_filtered.extend(parse_multiselect_cell(entry))
+if TOOLS_COL in filtered_df.columns:
+    st.subheader("Tools Included Breakdown")
+    all_tools_in_filtered = []
+    for entry in filtered_df[TOOLS_COL]:
+        all_tools_in_filtered.extend(parse_multiselect_cell(entry))
 
-if all_tools_in_filtered:
-    tools_counts = pd.Series(all_tools_in_filtered).value_counts()
-    st.bar_chart(tools_counts)
+    if all_tools_in_filtered:
+        tools_counts = pd.Series(all_tools_in_filtered).value_counts()
+        st.bar_chart(tools_counts)
 
 st.subheader("Filtered Data")
 st.dataframe(filtered_df, use_container_width=True)
