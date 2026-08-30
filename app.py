@@ -3,19 +3,14 @@ import io
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="User Dashboard", layout="wide")
+st.set_page_config(page_title="Survey Dashboard", layout="wide")
 
 
 @st.cache_data
 def load_data(filepath):
-    df = pd.read_csv(filepath)
-
-    if all(str(col).startswith("Unnamed") for col in df.columns):
-        df = pd.read_csv(filepath, header=None)
-        df.columns = [f"Column_{i+1}" for i in range(len(df.columns))]
-    else:
-        df.columns = df.columns.str.strip()
-
+    # header=1 tells Pandas to use Row 2 as the column headers
+    df = pd.read_csv(filepath, header=1)
+    df.columns = df.columns.astype(str).str.strip()
     return df
 
 
@@ -51,13 +46,17 @@ columns_list = list(df.columns)
 AUDIENCE_COL = st.sidebar.selectbox(
     "Select Primary Audience Column",
     options=columns_list,
-    index=0 if len(columns_list) > 0 else 0,
+    index=columns_list.index("Primary Audience")
+    if "Primary Audience" in columns_list
+    else 0,
 )
 
 TOOLS_COL = st.sidebar.selectbox(
     "Select Tools Included Column",
     options=columns_list,
-    index=1 if len(columns_list) > 1 else 0,
+    index=columns_list.index("Tools Included")
+    if "Tools Included" in columns_list
+    else (1 if len(columns_list) > 1 else 0),
 )
 
 scale_candidates = [
