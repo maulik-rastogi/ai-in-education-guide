@@ -141,14 +141,19 @@ for col in multiselect_columns:
     if col in display_df.columns:
         display_df[col] = display_df[col].apply(parse_multiselect_cell)
 
-column_configs = {
-    col: st.column_config.ListColumn(col)
-    for col in multiselect_columns
-    if col in display_df.columns
-}
+column_configs = {}
+
+for col in multiselect_columns:
+    if col in display_df.columns:
+        column_configs[col] = st.column_config.ListColumn(col)
+
+for col in display_df.columns:
+    if col not in multiselect_columns:
+        column_configs[col] = st.column_config.TextColumn(col, width="medium")
 
 st.dataframe(
     display_df,
     column_config=column_configs,
     use_container_width=True,
+    hide_index=True,
 )
