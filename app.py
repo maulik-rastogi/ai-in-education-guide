@@ -3,7 +3,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Survey Dashboard", layout="wide")
+st.set_page_config(page_title="User Dashboard", layout="wide")
 
 
 @st.cache_data
@@ -87,7 +87,7 @@ selected_tools = st.sidebar.multiselect(
 )
 
 if SCALE_COL != "None":
-    numeric_scale = pd.to_numeric(df[SCALE_COL], errors="coerce")
+    numeric_scale = pd.to_numeric(df[SCALE_COL], errors="coerce").dropna()
     min_val = int(numeric_scale.min()) if not numeric_scale.empty else 0
     max_val = int(numeric_scale.max()) if not numeric_scale.empty else 3
     selected_scale = st.sidebar.slider(
