@@ -8,7 +8,6 @@ st.set_page_config(page_title="Survey Dashboard", layout="wide")
 
 @st.cache_data
 def load_data(filepath):
-    # header=1 tells Pandas to use Row 2 as the column headers
     df = pd.read_csv(filepath, header=1)
     df.columns = df.columns.astype(str).str.strip()
     return df
@@ -23,10 +22,9 @@ def parse_multiselect_cell(val):
     reader = csv.reader(io.StringIO(str(val)), skipinitialspace=True)
     try:
         items = list(reader)[0]
-        cleaned_items = [
+        return [
             item.strip().strip('"').strip("'") for item in items if item.strip()
         ]
-        return cleaned_items
     except IndexError:
         return []
 
@@ -39,65 +37,56 @@ def extract_unique_options(series):
     return sorted(list(unique_options))
 
 
+# Map columns dynamically by zero-based index position
+cols = list(df.columns)
+
+TITLE_COL = cols[0]
+ORG_COL = cols[1]
+YEAR_COL = cols[2]
+RESOURCE_TYPE_COL = cols[3]
+SECTOR_COL = cols[4]
+AUDIENCE_COL = cols[5]
+TOPICS_COLS = cols[6:12]
+EQUITY_COLS = cols[12:17]
+TOOLS_COL = cols[17] if len(cols) > 17 else None
+NOTES_COL = cols[18] if len(cols) > 18 else None
+
 st.sidebar.header("Filter Responses")
 
-columns_list = list(df.columns)
+# Free Response Search
+title_search = st.sidebar.text_input("Search Title")
+org_search = st.sidebar.text_input("Search Organization")
 
-AUDIENCE_COL = st.sidebar.selectbox(
-    "Select Primary Audience Column",
-    options=columns_list,
-    index=columns_list.index("Primary Audience")
-    if "Primary Audience" in columns_list
-    else 0,
+# Standard Multi-Select Filters
+resource_opts = extract_unique_options(df[RESOURCE_TYPE_COL])
+selected_resource = st.sidebar.multiselect(
+    RESOURCE_TYPE_COL, options=resource_opts
 )
 
-TOOLS_COL = st.sidebar.selectbox(
-    "Select Tools Included Column",
-    options=columns_list,
-    index=columns_list.index("Tools Included")
-    if "Tools Included" in columns_list
-    else (1 if len(columns_list) > 1 else 0),
-)
+sector_opts = extract_unique_options(df[SECTOR_COL])
+selected_sector = st.sidebar.multiselect(SECTOR_COL, options=sector_opts)
 
-scale_candidates = [
-    col
-    for col in df.columns
-    if pd.to_numeric(df[col], errors="coerce")
-    .dropna()
-    .isin([0, 1, 2, 3, 0.0, 1.0, 2.0, 3.0])
-    .all()
-    and not df[col].dropna().empty
-]
+audience_opts = extract_unique_options(df[AUDIENCE_COL])
+selected_audience = st.sidebar.multiselect(AUDIENCE_COL, options=audience_opts)
 
-SCALE_COL = st.sidebar.selectbox(
-    "Select Scale Column (0-3)",
-    options=["None"] + scale_candidates,
-    index=1 if len(scale_candidates) > 0 else 0,
-)
-
-aud_options = extract_unique_options(df[AUDIENCE_COL])
-selected_audience = st.sidebar.multiselect(
-    f"Filter {AUDIENCE_COL}", options=aud_options
-)
-
-tools_options = extract_unique_options(df[TOOLS_COL])
-selected_tools = st.sidebar.multiselect(
-    f"Filter {TOOLS_COL}", options=tools_options
-)
-
-if SCALE_COL != "None":
-    numeric_scale = pd.to_numeric(df[SCALE_COL], errors="coerce").dropna()
-    min_val = int(numeric_scale.min()) if not numeric_scale.empty else 0
-    max_val = int(numeric_scale.max()) if not numeric_scale.empty else 3
-    selected_scale = st.sidebar.slider(
-        f"Filter {SCALE_COL}",
-        min_value=min_val,
-        max_value=max_val,
-        value=(min_val, max_val),
-    )
+if TOOLS_COL:
+    tools_opts = extract_unique_options(df[TOOLS_COL])
+    selected_tools = st.sidebar.multiselect(TOOLS_COL, options=tools_opts)
 else:
-    selected_scale = None
+    selected_tools = []
 
+# Topics Covered Filter (Columns 7-12, score >= 2)
+selected_topics = st.sidebar.multiselect(
+    "Topics Covered (Score ≥ 2)", options=TOPICS_COLS
+)
+
+# Equitability Filter (Columns 13-17, score ≥ 2)
+selected_equity = st.sidebar.multiselect(
+    "Equitability (Score ≥ 2)", options=EQUITY_COLS
+)
+
+
+# Filter application
 filtered_df = df.copy()
 
 
@@ -112,15 +101,38 @@ def filter_multiselect(dataframe, column_name, selected_values):
     return dataframe[dataframe[column_name].apply(matches)]
 
 
+filtered_df = filter_multiselect(filtered_df, RESOURCE_TYPE_COL, selected_resource)
+filtered_df = filter_multiselect(filtered_df, SECTOR_COL, selected_sector)
 filtered_df = filter_multiselect(filtered_df, AUDIENCE_COL, selected_audience)
-filtered_df = filter_multiselect(filtered_df, TOOLS_COL, selected_tools)
+if TOOLS_COL:
+    filtered_df = filter_multiselect(filtered_df, TOOLS_COL, selected_tools)
 
-if SCALE_COL != "None" and selected_scale:
-    numeric_col = pd.to_numeric(filtered_df[SCALE_COL], errors="coerce")
+if title_search:
     filtered_df = filtered_df[
-        numeric_col.between(selected_scale[0], selected_scale[1])
+        filtered_df[TITLE_COL]
+        .astype(str)
+        .str.contains(title_search, case=False, na=False)
     ]
 
+if org_search:
+    filtered_df = filtered_df[
+        filtered_df[ORG_COL]
+        .astype(str)
+        .str.contains(org_search, case=False, na=False)
+    ]
+
+# Apply score >= 2 rule for Topics Covered
+for col in selected_topics:
+    numeric_series = pd.to_numeric(filtered_df[col], errors="coerce")
+    filtered_df = filtered_df[numeric_series >= 2]
+
+# Apply score >= 2 rule for Equitability
+for col in selected_equity:
+    numeric_series = pd.to_numeric(filtered_df[col], errors="coerce")
+    filtered_df = filtered_df[numeric_series >= 2]
+
+
+# Main Display
 st.title("Interactive Survey Dashboard")
 
 col1, col2 = st.columns(2)
@@ -129,14 +141,15 @@ col2.metric("Filtered Entries", len(filtered_df))
 
 st.divider()
 
-st.subheader("Tools Included Breakdown")
-all_tools_in_filtered = []
-for entry in filtered_df[TOOLS_COL]:
-    all_tools_in_filtered.extend(parse_multiselect_cell(entry))
+if TOOLS_COL in filtered_df.columns:
+    st.subheader(f"{TOOLS_COL} Breakdown")
+    all_tools_in_filtered = []
+    for entry in filtered_df[TOOLS_COL]:
+        all_tools_in_filtered.extend(parse_multiselect_cell(entry))
 
-if all_tools_in_filtered:
-    tools_counts = pd.Series(all_tools_in_filtered).value_counts()
-    st.bar_chart(tools_counts)
+    if all_tools_in_filtered:
+        tools_counts = pd.Series(all_tools_in_filtered).value_counts()
+        st.bar_chart(tools_counts)
 
 st.subheader("Filtered Data")
 st.dataframe(filtered_df, use_container_width=True)
