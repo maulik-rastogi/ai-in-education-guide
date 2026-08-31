@@ -8,7 +8,7 @@ st.set_page_config(page_title="Survey Dashboard", layout="wide")
 
 @st.cache_data
 def load_data(filepath):
-    df = pd.read_csv(filepath, header=1)
+    df = pd.read_csv(filepath, header=1, engine="python")
     df.columns = df.columns.astype(str).str.strip()
     return df
 
@@ -19,7 +19,9 @@ df = load_data("data.csv")
 def parse_multiselect_cell(val):
     if pd.isna(val) or not str(val).strip():
         return []
-    reader = csv.reader(io.StringIO(str(val)), skipinitialspace=True)
+    reader = csv.reader(
+        io.StringIO(str(val)), skipinitialspace=True, lineterminator="\n"
+    )
     try:
         items = list(reader)[0]
         return [
