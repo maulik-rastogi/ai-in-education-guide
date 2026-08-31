@@ -36,18 +36,20 @@ def extract_unique_options(series):
         unique_options.update(items)
     return sorted(list(unique_options))
 
+
 cols = list(df.columns)
 
 TITLE_COL = cols[0]
-ORG_COL = cols[1]
-YEAR_COL = cols[2]
-RESOURCE_TYPE_COL = cols[3]
-SECTOR_COL = cols[4]
-AUDIENCE_COL = cols[5]
-TOPICS_COLS = cols[6:12]
-EQUITY_COLS = cols[12:17]
-TOOLS_COL = cols[17] if len(cols) > 17 else None
-NOTES_COL = cols[18] if len(cols) > 18 else None
+LINK_COL = cols[1] 
+ORG_COL = cols[2]
+YEAR_COL = cols[3]
+RESOURCE_TYPE_COL = cols[4]
+SECTOR_COL = cols[5]
+AUDIENCE_COL = cols[6]
+TOPICS_COLS = cols[7:13]
+EQUITY_COLS = cols[13:18]
+TOOLS_COL = cols[18] if len(cols) > 18 else None
+NOTES_COL = cols[19] if len(cols) > 19 else None
 
 st.sidebar.header("Filter Responses")
 
@@ -122,6 +124,7 @@ for col in selected_equity:
     numeric_series = pd.to_numeric(filtered_df[col], errors="coerce")
     filtered_df = filtered_df[numeric_series >= 2]
 
+
 st.title("Interactive Survey Dashboard")
 
 col1, col2 = st.columns(2)
@@ -145,10 +148,17 @@ column_configs = {}
 
 for col in multiselect_columns:
     if col in display_df.columns:
-        column_configs[col] = st.column_config.ListColumn(col)
+        column_configs[col] = st.column_config.ListColumn(col, width="medium")
+
+if LINK_COL in display_df.columns:
+    column_configs[LINK_COL] = st.column_config.LinkColumn(
+        LINK_COL,
+        display_text="Open Link",  
+        width="small",
+    )
 
 for col in display_df.columns:
-    if col not in multiselect_columns:
+    if col not in multiselect_columns and col != LINK_COL:
         column_configs[col] = st.column_config.TextColumn(col, width="medium")
 
 st.dataframe(
