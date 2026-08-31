@@ -39,17 +39,26 @@ def extract_unique_options(series):
 
 cols = list(df.columns)
 
-TITLE_COL = cols[0]
-LINK_COL = cols[1] 
-ORG_COL = cols[2]
-YEAR_COL = cols[3]
-RESOURCE_TYPE_COL = cols[4]
-SECTOR_COL = cols[5]
-AUDIENCE_COL = cols[6]
-TOPICS_COLS = cols[7:13]
-EQUITY_COLS = cols[13:18]
-TOOLS_COL = cols[18] if len(cols) > 18 else None
-NOTES_COL = cols[19] if len(cols) > 19 else None
+
+def get_col_by_keyword(keywords, default_idx):
+    for col in cols:
+        if any(kw.lower() in col.lower() for kw in keywords):
+            return col
+    return cols[default_idx] if len(cols) > default_idx else cols[0]
+
+
+TITLE_COL = get_col_by_keyword(["title"], 0)
+LINK_COL = get_col_by_keyword(["link", "url", "website"], 1)
+ORG_COL = get_col_by_keyword(["org", "organization"], 2)
+RESOURCE_TYPE_COL = get_col_by_keyword(["resource"], 4)
+SECTOR_COL = get_col_by_keyword(["sector", "education"], 5)
+AUDIENCE_COL = get_col_by_keyword(["audience"], 6)
+TOOLS_COL = get_col_by_keyword(["tool"], len(cols) - 2)
+
+topics_start = 7 if len(cols) > 7 else 0
+TOPICS_COLS = cols[topics_start : topics_start + 6]
+equity_start = topics_start + 6
+EQUITY_COLS = cols[equity_start : equity_start + 5]
 
 st.sidebar.header("Filter Responses")
 
@@ -67,7 +76,7 @@ selected_sector = st.sidebar.multiselect(SECTOR_COL, options=sector_opts)
 audience_opts = extract_unique_options(df[AUDIENCE_COL])
 selected_audience = st.sidebar.multiselect(AUDIENCE_COL, options=audience_opts)
 
-if TOOLS_COL:
+if TOOLS_COL in df.columns:
     tools_opts = extract_unique_options(df[TOOLS_COL])
     selected_tools = st.sidebar.multiselect(TOOLS_COL, options=tools_opts)
 else:
@@ -86,7 +95,7 @@ filtered_df = df.copy()
 
 
 def filter_multiselect(dataframe, column_name, selected_values):
-    if not selected_values:
+    if not selected_values or column_name not in dataframe.columns:
         return dataframe
 
     def matches(val):
@@ -99,17 +108,17 @@ def filter_multiselect(dataframe, column_name, selected_values):
 filtered_df = filter_multiselect(filtered_df, RESOURCE_TYPE_COL, selected_resource)
 filtered_df = filter_multiselect(filtered_df, SECTOR_COL, selected_sector)
 filtered_df = filter_multiselect(filtered_df, AUDIENCE_COL, selected_audience)
-if TOOLS_COL:
+if TOOLS_COL in filtered_df.columns:
     filtered_df = filter_multiselect(filtered_df, TOOLS_COL, selected_tools)
 
-if title_search:
+if title_search and TITLE_COL in filtered_df.columns:
     filtered_df = filtered_df[
         filtered_df[TITLE_COL]
         .astype(str)
         .str.contains(title_search, case=False, na=False)
     ]
 
-if org_search:
+if org_search and ORG_COL in filtered_df.columns:
     filtered_df = filtered_df[
         filtered_df[ORG_COL]
         .astype(str)
@@ -137,7 +146,7 @@ st.subheader("Filtered Data")
 
 display_df = filtered_df.copy()
 multiselect_columns = [RESOURCE_TYPE_COL, SECTOR_COL, AUDIENCE_COL]
-if TOOLS_COL:
+if TOOLS_COL in display_df.columns:
     multiselect_columns.append(TOOLS_COL)
 
 for col in multiselect_columns:
@@ -153,7 +162,7 @@ for col in multiselect_columns:
 if LINK_COL in display_df.columns:
     column_configs[LINK_COL] = st.column_config.LinkColumn(
         LINK_COL,
-        display_text="Open Link",  
+        display_text="Open Link",
         width="small",
     )
 
