@@ -3,7 +3,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Survey Dashboard", layout="wide")
+st.set_page_config(page_title="User Dashboard", layout="wide")
 
 
 @st.cache_data
@@ -66,7 +66,7 @@ NOTES_COL = cols[19] if len(cols) > 19 else None
 
 df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
 
-st.sidebar.header("Filter Responses")
+st.sidebar.header("Filter Resources")
 
 title_search = st.sidebar.text_input("Search Title")
 org_search = st.sidebar.text_input("Search Organization")
