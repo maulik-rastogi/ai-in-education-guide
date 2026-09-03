@@ -134,7 +134,7 @@ for col in selected_equity:
     numeric_series = pd.to_numeric(filtered_df[col], errors="coerce")
     filtered_df = filtered_df[numeric_series >= 2]
 
-st.title("Interactive User Dashboard")
+st.title("Governance Guidance Pack: Artificial Intelligence (AI) in Education")
 
 col1, col2 = st.columns(2)
 col1.metric("Total Entries", len(df))
