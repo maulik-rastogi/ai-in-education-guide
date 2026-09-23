@@ -1,1 +1,1 @@
-# ai-in-education-guide
+# ai-in-edu
