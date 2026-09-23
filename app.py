@@ -84,7 +84,7 @@ st.sidebar.header("Filter Resources")
 parents_only_df = df[df[IS_SUB_ITEM_COL] != "YES"]
 
 title_search = st.sidebar.text_input("Search Title")
-org_search = st.sidebar.text_input("Search Organization")
+org_search = st.sidebar.text_input("Search by Organization")
 
 resource_opts = extract_unique_options(parents_only_df[RESOURCE_TYPE_COL])
 selected_resource = st.sidebar.multiselect(
