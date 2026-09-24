@@ -91,7 +91,7 @@ else:
 
 df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
 
-st.sidebar.header("Filter Resources")
+st.sidebar.header("Filter resources")
 
 parents_only_df = df[df[IS_SUB_ITEM_COL] != "YES"]
 
