@@ -12,9 +12,7 @@ def load_data(filepath):
     df.columns = df.columns.astype(str).str.strip()
     return df
 
-
 df = load_data("data.csv")
-
 
 def parse_multiselect_cell(val):
     if pd.isna(val) or not str(val).strip():
@@ -67,17 +65,22 @@ PARENT_ID_COL = "Parent ID"
 IS_SUB_ITEM_COL = "Subitem?"
 SUB_ITEM_NOTES_COL = "Subitem Notes"
 
-df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
+if PARENT_ID_COL in df.columns:
+    df[PARENT_ID_COL] = df[PARENT_ID_COL].fillna(df[TITLE_COL]).ffill()
+else:
+    df[PARENT_ID_COL] = df[TITLE_COL].ffill()
 
 if IS_SUB_ITEM_COL in df.columns:
-    df[IS_SUB_ITEM_COL] = df[IS_SUB_ITEM_COL].astype(str).str.strip().str.upper()
+    df[IS_SUB_ITEM_COL] = (
+        df[IS_SUB_ITEM_COL].astype(str).str.strip().str.upper()
+    )
+    df[IS_SUB_ITEM_COL] = df[IS_SUB_ITEM_COL].apply(
+        lambda x: "YES" if x in ["YES", "Y", "TRUE", "1"] else "NO"
+    )
 else:
     df[IS_SUB_ITEM_COL] = "NO"
 
-if PARENT_ID_COL in df.columns:
-    df[PARENT_ID_COL] = df[PARENT_ID_COL].fillna(df[TITLE_COL])
-else:
-    df[PARENT_ID_COL] = df[TITLE_COL]
+df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
 
 st.sidebar.header("Filter Resources")
 
@@ -95,7 +98,9 @@ sector_opts = extract_unique_options(parents_only_df[SECTOR_COL])
 selected_sector = st.sidebar.multiselect(SECTOR_COL, options=sector_opts)
 
 audience_opts = extract_unique_options(parents_only_df[AUDIENCE_COL])
-selected_audience = st.sidebar.multiselect(AUDIENCE_COL, options=audience_opts)
+selected_audience = st.sidebar.multiselect(
+    AUDIENCE_COL, options=audience_opts
+)
 
 tools_opts = extract_unique_options(parents_only_df[TOOLS_COL])
 selected_tools = st.sidebar.multiselect(TOOLS_COL, options=tools_opts)
@@ -153,8 +158,7 @@ matching_parent_ids = filtered_parents[PARENT_ID_COL].dropna().unique()
 filtered_df = df[df[PARENT_ID_COL].isin(matching_parent_ids)].copy()
 
 filtered_df = filtered_df.sort_values(
-    by=[PARENT_ID_COL, IS_SUB_ITEM_COL],
-    ascending=[True, True]
+    by=[PARENT_ID_COL, IS_SUB_ITEM_COL], ascending=[True, True]
 )
 
 st.title("Governance Guidance Pack: Artificial Intelligence (AI) in Education")
@@ -171,18 +175,27 @@ display_df = filtered_df.copy()
 
 def format_title_cell(row):
     is_sub = str(row.get(IS_SUB_ITEM_COL, "")).upper() == "YES"
-    title = str(row[TITLE_COL])
+    title = str(row[TITLE_COL]) if pd.notna(row[TITLE_COL]) else ""
+
+    notes = ""
+    if (
+        SUB_ITEM_NOTES_COL in row
+        and pd.notna(row[SUB_ITEM_NOTES_COL])
+        and str(row[SUB_ITEM_NOTES_COL]).strip() != "nan"
+    ):
+        notes = str(row[SUB_ITEM_NOTES_COL]).strip()
 
     if is_sub:
-        notes = (
-            str(row[SUB_ITEM_NOTES_COL])
-            if SUB_ITEM_NOTES_COL in row and pd.notna(row[SUB_ITEM_NOTES_COL])
-            else ""
-        )
-        if notes.strip():
-            return f" --> {title} — {notes}"
-        return f" --> {title}"
-    return f"{title}"
+        if title and notes:
+            return f"-->{title} ({notes})"
+        elif notes:
+            return f"-->Note: {notes}"
+        elif title:
+            return f"-->{title}"
+        else:
+            return "-->Sub-item"
+    return title
+
 
 display_df[TITLE_COL] = display_df.apply(format_title_cell, axis=1)
 
@@ -204,11 +217,7 @@ column_configs[LINK_COL] = st.column_config.LinkColumn(
     width="small",
 )
 
-for col in display_df.columns:
-    if col not in multiselect_columns and col != LINK_COL:
-        column_configs[col] = st.column_config.TextColumn(col, width="medium")
-
-internal_cols = [PARENT_ID_COL, IS_SUB_ITEM_COL, SUB_ITEM_NOTES_COL]
+internal_cols = [PARENT_ID_COL]
 visible_columns = [c for c in display_df.columns if c not in internal_cols]
 
 st.dataframe(
