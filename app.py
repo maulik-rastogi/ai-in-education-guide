@@ -12,7 +12,9 @@ def load_data(filepath):
     df.columns = df.columns.astype(str).str.strip()
     return df
 
+
 df = load_data("data.csv")
+
 
 def parse_multiselect_cell(val):
     if pd.isna(val) or str(val).strip().lower() in ["", "nan", "none"]:
@@ -30,6 +32,7 @@ def parse_multiselect_cell(val):
     except IndexError:
         return []
 
+
 def extract_unique_options(series):
     unique_options = set()
     for entry in series.dropna():
@@ -40,10 +43,10 @@ def extract_unique_options(series):
 
 def sanitize_url(val):
     if pd.isna(val):
-        return None
+        return ""
     url_str = str(val).strip()
     if not url_str or url_str.lower() in ["nan", "none"]:
-        return None
+        return ""
     if not (url_str.startswith("http://") or url_str.startswith("https://")):
         return f"https://{url_str}"
     return url_str
@@ -56,22 +59,21 @@ def clean_str(val):
     return "" if s.lower() in ["nan", "none"] else s
 
 
-cols = list(df.columns)
-
-TITLE_COL = cols[0]
-LINK_COL = cols[1]
-ORG_COL = cols[2]
-YEAR_COL = cols[3]
-RESOURCE_TYPE_COL = cols[4]
-SECTOR_COL = cols[5]
-AUDIENCE_COL = cols[6]
-TOPICS_COLS = cols[7:13]
-EQUITY_COLS = cols[13:18]
-TOOLS_COL = cols[18]
-
+TITLE_COL = "Title"
 PARENT_ID_COL = "Parent ID"
 IS_SUB_ITEM_COL = "Subitem?"
 SUB_ITEM_NOTES_COL = "Subitem Notes"
+LINK_COL = "Link"
+
+cols = list(df.columns)
+ORG_COL = cols[5] if len(cols) > 5 else "Organization"
+YEAR_COL = cols[6] if len(cols) > 6 else "Year"
+RESOURCE_TYPE_COL = cols[7] if len(cols) > 7 else "Resource Type"
+SECTOR_COL = cols[8] if len(cols) > 8 else "Sector"
+AUDIENCE_COL = cols[9] if len(cols) > 9 else "Audience"
+TOPICS_COLS = cols[10:16] if len(cols) > 15 else []
+EQUITY_COLS = cols[16:21] if len(cols) > 20 else []
+TOOLS_COL = cols[21] if len(cols) > 21 else "Tools"
 
 if IS_SUB_ITEM_COL in df.columns:
     df[IS_SUB_ITEM_COL] = (
@@ -86,33 +88,52 @@ else:
     df[IS_SUB_ITEM_COL] = "NO"
 
 df["_GROUP_ID"] = df[TITLE_COL].where(df[IS_SUB_ITEM_COL] != "YES")
-if PARENT_ID_COL in df.columns:
-    df["_GROUP_ID"] = df["_GROUP_ID"].fillna(df[PARENT_ID_COL])
 df["_GROUP_ID"] = df["_GROUP_ID"].ffill()
 
-df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
+# Sanitize URLs
+if LINK_COL in df.columns:
+    df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
 
 st.sidebar.header("Filter Resources")
 
 parents_only_df = df[df[IS_SUB_ITEM_COL] != "YES"]
 
 title_search = st.sidebar.text_input("Search Title")
-org_search = st.sidebar.text_input("Search by Organization")
 
-resource_opts = extract_unique_options(parents_only_df[RESOURCE_TYPE_COL])
+org_search = ""
+if ORG_COL in df.columns:
+    org_search = st.sidebar.text_input("Search by Organization")
+
+resource_opts = (
+    extract_unique_options(parents_only_df[RESOURCE_TYPE_COL])
+    if RESOURCE_TYPE_COL in df.columns
+    else []
+)
 selected_resource = st.sidebar.multiselect(
     RESOURCE_TYPE_COL, options=resource_opts
 )
 
-sector_opts = extract_unique_options(parents_only_df[SECTOR_COL])
+sector_opts = (
+    extract_unique_options(parents_only_df[SECTOR_COL])
+    if SECTOR_COL in df.columns
+    else []
+)
 selected_sector = st.sidebar.multiselect(SECTOR_COL, options=sector_opts)
 
-audience_opts = extract_unique_options(parents_only_df[AUDIENCE_COL])
+audience_opts = (
+    extract_unique_options(parents_only_df[AUDIENCE_COL])
+    if AUDIENCE_COL in df.columns
+    else []
+)
 selected_audience = st.sidebar.multiselect(
     AUDIENCE_COL, options=audience_opts
 )
 
-tools_opts = extract_unique_options(parents_only_df[TOOLS_COL])
+tools_opts = (
+    extract_unique_options(parents_only_df[TOOLS_COL])
+    if TOOLS_COL in df.columns
+    else []
+)
 selected_tools = st.sidebar.multiselect(TOOLS_COL, options=tools_opts)
 
 selected_topics = st.sidebar.multiselect(
@@ -157,7 +178,7 @@ if title_search:
         .str.contains(title_search, case=False, na=False)
     ]
 
-if org_search:
+if org_search and ORG_COL in df.columns:
     filtered_parents = filtered_parents[
         filtered_parents[ORG_COL]
         .astype(str)
@@ -165,12 +186,14 @@ if org_search:
     ]
 
 for col in selected_topics:
-    numeric_series = pd.to_numeric(filtered_parents[col], errors="coerce")
-    filtered_parents = filtered_parents[numeric_series >= 2]
+    if col in filtered_parents.columns:
+        numeric_series = pd.to_numeric(filtered_parents[col], errors="coerce")
+        filtered_parents = filtered_parents[numeric_series >= 2]
 
 for col in selected_equity:
-    numeric_series = pd.to_numeric(filtered_parents[col], errors="coerce")
-    filtered_parents = filtered_parents[numeric_series >= 2]
+    if col in filtered_parents.columns:
+        numeric_series = pd.to_numeric(filtered_parents[col], errors="coerce")
+        filtered_parents = filtered_parents[numeric_series >= 2]
 
 matching_group_ids = filtered_parents["_GROUP_ID"].dropna().unique()
 
@@ -191,62 +214,47 @@ st.subheader("Filtered Data")
 
 display_df = filtered_df.copy()
 
-
 def format_title_cell(row):
     is_sub = str(row.get(IS_SUB_ITEM_COL, "")).upper() == "YES"
-    title = clean_str(row.get(TITLE_COL, ""))
-    notes = clean_str(row.get(SUB_ITEM_NOTES_COL, ""))
+    parent_title = clean_str(row.get(TITLE_COL, ""))
+    sub_title = clean_str(row.get(PARENT_ID_COL, ""))
 
     if is_sub:
-        if title and notes:
-            return f"↳ {title} ({notes})"
-        elif notes:
-            return f"↳ {notes}"
-        elif title:
-            return f"↳ {title}"
-        else:
-            return "↳ Sub-item"
-    return title
-
-
-def format_parent_id_cell(row):
-    is_sub = str(row.get(IS_SUB_ITEM_COL, "")).upper() == "YES"
-    if not is_sub:
-        return None
-    val = clean_str(row.get(PARENT_ID_COL, ""))
-    if val.startswith("http://") or val.startswith("https://"):
-        return None
-    return val if val else None
+        display_text = sub_title if sub_title else parent_title
+        return f"↳ {display_text}" if display_text else "↳ Sub-item"
+    return parent_title
 
 
 display_df[TITLE_COL] = display_df.apply(format_title_cell, axis=1)
 
-if PARENT_ID_COL in display_df.columns:
-    display_df[PARENT_ID_COL] = display_df.apply(format_parent_id_cell, axis=1)
-
-multiselect_columns = [RESOURCE_TYPE_COL, SECTOR_COL, AUDIENCE_COL, TOOLS_COL]
+multiselect_columns = [
+    c
+    for c in [RESOURCE_TYPE_COL, SECTOR_COL, AUDIENCE_COL, TOOLS_COL]
+    if c in display_df.columns
+]
 
 for col in multiselect_columns:
-    if col in display_df.columns:
-        display_df[col] = display_df[col].apply(parse_multiselect_cell)
+    display_df[col] = display_df[col].apply(parse_multiselect_cell)
 
 column_configs = {}
 
 for col in multiselect_columns:
-    if col in display_df.columns:
-        column_configs[col] = st.column_config.ListColumn(col, width="medium")
+    column_configs[col] = st.column_config.ListColumn(col, width="medium")
 
-column_configs[LINK_COL] = st.column_config.LinkColumn(
-    LINK_COL,
-    display_text="Open Link",
-    width="small",
-)
+if LINK_COL in display_df.columns:
+    column_configs[LINK_COL] = st.column_config.LinkColumn(
+        LINK_COL,
+        display_text="Open Link",
+        width="small",
+    )
 
-internal_cols = ["_GROUP_ID"]
+internal_cols = ["_GROUP_ID", PARENT_ID_COL]
 visible_columns = [c for c in display_df.columns if c not in internal_cols]
 
+display_df = display_df[visible_columns].fillna("")
+
 st.dataframe(
-    display_df[visible_columns],
+    display_df,
     column_config=column_configs,
     use_container_width=True,
     hide_index=True,
