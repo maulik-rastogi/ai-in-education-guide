@@ -205,6 +205,14 @@ filtered_df = filtered_df.sort_values(
 
 st.title("Governance Guidance Pack: Artificial Intelligence (AI) in Education")
 
+st.caption(
+    "Welcome! This guidance pack is intended for the use of education stakeholders, such as educators, LEAs, and policymakers.
+    Below, you will find a list of guidance documents, frameworks, and other governance resources. 
+    In each row, you can find items' basic information. In addition, GRAIL has also developed evaluations for each resource.
+    For each column titled with a guidance topic, resources are scored (1-3) based on how deeply they cover that particular topic. Similarly, each column labelled with an underserved group evaluates how deeply the resource provides guidance for that underserved group specifically. Lastly, the final four columns evaluate each resource’s real-world usability, list the tools the resources offer, and provide notable information.
+    The Filtration system on the left also allows you to access resources that fit your specific needs and preferences."
+)
+
 col1, col2 = st.columns(2)
 col1.metric("Total Entries", len(df))
 col2.metric("Filtered Entries", len(filtered_df))
