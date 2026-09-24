@@ -82,7 +82,7 @@ if IS_SUB_ITEM_COL in df.columns:
         .astype(str)
         .str.strip()
         .str.upper()
-        .apply(lambda x: "YES" if x in ["YES", "Y", "TRUE", "1"] else "NO")
+        .apply(lambda x: "YES" if x in ["YES"] else "NO")
     )
 else:
     df[IS_SUB_ITEM_COL] = "NO"
