@@ -12,9 +12,7 @@ def load_data(filepath):
     df.columns = df.columns.astype(str).str.strip()
     return df
 
-
 df = load_data("data.csv")
-
 
 def parse_multiselect_cell(val):
     if pd.isna(val) or str(val).strip().lower() in ["", "nan", "none"]:
@@ -31,7 +29,6 @@ def parse_multiselect_cell(val):
         ]
     except IndexError:
         return []
-
 
 def extract_unique_options(series):
     unique_options = set()
@@ -50,6 +47,13 @@ def sanitize_url(val):
     if not (url_str.startswith("http://") or url_str.startswith("https://")):
         return f"https://{url_str}"
     return url_str
+
+
+def clean_str(val):
+    if pd.isna(val):
+        return ""
+    s = str(val).strip()
+    return "" if s.lower() in ["nan", "none"] else s
 
 
 cols = list(df.columns)
@@ -81,13 +85,14 @@ if IS_SUB_ITEM_COL in df.columns:
 else:
     df[IS_SUB_ITEM_COL] = "NO"
 
-df["_GROUP_ID"] = df[PARENT_ID_COL] if PARENT_ID_COL in df.columns else None
-df["_GROUP_ID"] = df["_GROUP_ID"].replace(r"^\s*$", None, regex=True)
-df["_GROUP_ID"] = df["_GROUP_ID"].fillna(df[TITLE_COL]).ffill()
+df["_GROUP_ID"] = df[TITLE_COL].where(df[IS_SUB_ITEM_COL] != "YES")
+if PARENT_ID_COL in df.columns:
+    df["_GROUP_ID"] = df["_GROUP_ID"].fillna(df[PARENT_ID_COL])
+df["_GROUP_ID"] = df["_GROUP_ID"].ffill()
 
 df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
 
-st.sidebar.header("--Filter Resources--")
+st.sidebar.header("Filter Resources")
 
 parents_only_df = df[df[IS_SUB_ITEM_COL] != "YES"]
 
@@ -187,13 +192,6 @@ st.subheader("Filtered Data")
 display_df = filtered_df.copy()
 
 
-def clean_str(val):
-    if pd.isna(val):
-        return ""
-    s = str(val).strip()
-    return "" if s.lower() in ["nan", "none"] else s
-
-
 def format_title_cell(row):
     is_sub = str(row.get(IS_SUB_ITEM_COL, "")).upper() == "YES"
     title = clean_str(row.get(TITLE_COL, ""))
@@ -214,11 +212,11 @@ def format_title_cell(row):
 def format_parent_id_cell(row):
     is_sub = str(row.get(IS_SUB_ITEM_COL, "")).upper() == "YES"
     if not is_sub:
-        return ""
-    pid = clean_str(row.get(PARENT_ID_COL, ""))
-    if pid.startswith("http://") or pid.startswith("https://"):
-        return ""
-    return pid
+        return None
+    val = clean_str(row.get(PARENT_ID_COL, ""))
+    if val.startswith("http://") or val.startswith("https://"):
+        return None
+    return val if val else None
 
 
 display_df[TITLE_COL] = display_df.apply(format_title_cell, axis=1)
@@ -247,10 +245,8 @@ column_configs[LINK_COL] = st.column_config.LinkColumn(
 internal_cols = ["_GROUP_ID"]
 visible_columns = [c for c in display_df.columns if c not in internal_cols]
 
-display_df = display_df[visible_columns].fillna("")
-
 st.dataframe(
-    display_df,
+    display_df[visible_columns],
     column_config=column_configs,
     use_container_width=True,
     hide_index=True,
