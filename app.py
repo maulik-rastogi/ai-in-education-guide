@@ -81,17 +81,13 @@ if IS_SUB_ITEM_COL in df.columns:
 else:
     df[IS_SUB_ITEM_COL] = "NO"
 
-if PARENT_ID_COL in df.columns:
-    df[PARENT_ID_COL] = df[PARENT_ID_COL].replace(
-        r"^\s*$", None, regex=True
-    )
-    df[PARENT_ID_COL] = df[PARENT_ID_COL].fillna(df[TITLE_COL]).ffill()
-else:
-    df[PARENT_ID_COL] = df[TITLE_COL].ffill()
+df["_GROUP_ID"] = df[PARENT_ID_COL] if PARENT_ID_COL in df.columns else None
+df["_GROUP_ID"] = df["_GROUP_ID"].replace(r"^\s*$", None, regex=True)
+df["_GROUP_ID"] = df["_GROUP_ID"].fillna(df[TITLE_COL]).ffill()
 
 df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
 
-st.sidebar.header("Filter resources")
+st.sidebar.header("Filter Resources")
 
 parents_only_df = df[df[IS_SUB_ITEM_COL] != "YES"]
 
@@ -171,12 +167,12 @@ for col in selected_equity:
     numeric_series = pd.to_numeric(filtered_parents[col], errors="coerce")
     filtered_parents = filtered_parents[numeric_series >= 2]
 
-matching_parent_ids = filtered_parents[PARENT_ID_COL].dropna().unique()
+matching_group_ids = filtered_parents["_GROUP_ID"].dropna().unique()
 
-filtered_df = df[df[PARENT_ID_COL].isin(matching_parent_ids)].copy()
+filtered_df = df[df["_GROUP_ID"].isin(matching_group_ids)].copy()
 
 filtered_df = filtered_df.sort_values(
-    by=[PARENT_ID_COL, IS_SUB_ITEM_COL], ascending=[True, True]
+    by=["_GROUP_ID", IS_SUB_ITEM_COL], ascending=[True, True]
 )
 
 st.title("Governance Guidance Pack: Artificial Intelligence (AI) in Education")
@@ -191,18 +187,17 @@ st.subheader("Filtered Data")
 display_df = filtered_df.copy()
 
 
+def clean_str(val):
+    if pd.isna(val):
+        return ""
+    s = str(val).strip()
+    return "" if s.lower() in ["nan", "none"] else s
+
+
 def format_title_cell(row):
     is_sub = str(row.get(IS_SUB_ITEM_COL, "")).upper() == "YES"
-
-    raw_title = str(row.get(TITLE_COL, "")).strip()
-    title = "" if raw_title.lower() in ["nan", "none", ""] else raw_title
-
-    raw_notes = (
-        str(row.get(SUB_ITEM_NOTES_COL, "")).strip()
-        if SUB_ITEM_NOTES_COL in row
-        else ""
-    )
-    notes = "" if raw_notes.lower() in ["nan", "none", ""] else raw_notes
+    title = clean_str(row.get(TITLE_COL, ""))
+    notes = clean_str(row.get(SUB_ITEM_NOTES_COL, ""))
 
     if is_sub:
         if title and notes:
@@ -216,7 +211,20 @@ def format_title_cell(row):
     return title
 
 
+def format_parent_id_cell(row):
+    is_sub = str(row.get(IS_SUB_ITEM_COL, "")).upper() == "YES"
+    if not is_sub:
+        return ""
+    pid = clean_str(row.get(PARENT_ID_COL, ""))
+    if pid.startswith("http://") or pid.startswith("https://"):
+        return ""
+    return pid
+
+
 display_df[TITLE_COL] = display_df.apply(format_title_cell, axis=1)
+
+if PARENT_ID_COL in display_df.columns:
+    display_df[PARENT_ID_COL] = display_df.apply(format_parent_id_cell, axis=1)
 
 multiselect_columns = [RESOURCE_TYPE_COL, SECTOR_COL, AUDIENCE_COL, TOOLS_COL]
 
@@ -231,10 +239,12 @@ for col in multiselect_columns:
         column_configs[col] = st.column_config.ListColumn(col, width="medium")
 
 column_configs[LINK_COL] = st.column_config.LinkColumn(
-    LINK_COL, display_text="Open Link", width="small"
+    LINK_COL,
+    display_text="Open Link",
+    width="small",
 )
 
-internal_cols = [PARENT_ID_COL]
+internal_cols = ["_GROUP_ID"]
 visible_columns = [c for c in display_df.columns if c not in internal_cols]
 
 display_df = display_df[visible_columns].fillna("")
