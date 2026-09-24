@@ -87,7 +87,7 @@ df["_GROUP_ID"] = df["_GROUP_ID"].fillna(df[TITLE_COL]).ffill()
 
 df[LINK_COL] = df[LINK_COL].apply(sanitize_url)
 
-st.sidebar.header("Filter Resources")
+st.sidebar.header("--Filter Resources--")
 
 parents_only_df = df[df[IS_SUB_ITEM_COL] != "YES"]
 
